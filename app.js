@@ -15,13 +15,24 @@
 
 'use strict';
 
+function getRandomInt(max) {
+  return Math.floor(Math.random() * Math.floor(max));
+}
+
+
 var mysql      = require('mysql');
 var connection = mysql.createConnection({
-  host     : '127.0.0.1',
-  port     : '3306',
+  host     : '35.190.133.29',
   user     : 'root',
   database : 'truckanddriverIDs'
 });
+
+// var connection = mysql.createConnection({
+//   host     : '127.0.0.1',
+//   port     : '3306',
+//   user     : 'root',
+//   database : 'truckanddriverIDs'
+// });
 
 connection.connect(function(err) {
   if (err) {
@@ -31,8 +42,6 @@ connection.connect(function(err) {
 
   console.log('connected as id ' + connection.threadId);
 });
-
-connection.end();
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -48,43 +57,35 @@ app.post('/echo', (req, res) => {
 
 app.get('/truckGps', (req, res) => {
 
-  connection.query('SELECT 1 + 1 AS solution', function (error, results, fields) {
-    if (error) throw error;
-    console.log('The solution is: ', results[0].solution);
-  });
 
   res.status(200).json([{id: 123, long: 40.123, lat: 20.123},{id: 123, long: 40.123, lat: 20.123},{id: 123, long: 40.123, lat: 20.123}]);
 });
 
 app.get('/driverGps', (req, res) => {
 
-  connection.query('SELECT 1 + 1 AS solution', function (error, results, fields) {
-    if (error) throw error;
-    console.log('The solution is: ', results[0].solution);
-  });
-
   res.status(200).json([{id: 123, long: 40.123, lat: 20.123},{id: 123, long: 40.123, lat: 20.123},{id: 123, long: 40.123, lat: 20.123}]);
 });
 
 app.post('/link', (req, res) => {
 
+  const { truckID, driverID } = req.body;
+
+  connection.query(`select * from linkTable where driverID='${driverID}';`, function (error, results, fields) {
+    if(error) res.status(400).json({ message: error });
+    if(!results) res.status(400).json({ message: 'no such driverID' });
+    connection.query(`update linkTable set truckID=${truckID} where driverID='${driverID}';`, function (error, results, fields) {
+      if(error) res.status(400).json({ message: error });
+      res.status(200).json({ message: 'updated' });
+    });
+  });
+
 });
 
 app.post('/truckApi', (req, res) => {
 
+  
+
 });
-
-function authInfoHandler(req, res) {
-  let authUser = {id: 'anonymous'};
-  const encodedInfo = req.get('X-Endpoint-API-UserInfo');
-  if (encodedInfo) {
-    authUser = JSON.parse(Buffer.from(encodedInfo, 'base64'));
-  }
-  res.status(200).json(authUser);
-}
-
-app.get('/auth/info/googlejwt', authInfoHandler);
-app.get('/auth/info/googleidtoken', authInfoHandler);
 
 if (module === require.main) {
   const PORT = process.env.PORT || 8080;
@@ -93,9 +94,5 @@ if (module === require.main) {
     console.log('Press Ctrl+C to quit.');
   });
 }
-
-app.get('/echo2', (req, res) => {
-  res.status(200).json({message: req.body.message});
-});
 
 module.exports = app;
