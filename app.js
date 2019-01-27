@@ -26,7 +26,7 @@ var connection = mysql.createConnection({
   user     : 'root',
   database : 'truckanddriverIDs'
 });
-
+//
 // var connection = mysql.createConnection({
 //   host     : '127.0.0.1',
 //   port     : '3306',
@@ -57,23 +57,44 @@ app.post('/echo', (req, res) => {
 
 app.get('/truckGps', (req, res) => {
 
+  connection.query('select * from truckGPSTable;', (error, results, fields) => {
+    if(error) res.status(400).json({ message: error });
+    var results2 = results.map(({ driverID, latGPS, longGPS }) => ({
+      id: driverID,
+      lat: latGPS,
+      long: longGPS,
+    })
+    );
+    res.status(200).json(results2);
+  });
 
-  res.status(200).json([{id: 123, long: 40.123, lat: 20.123},{id: 123, long: 40.123, lat: 20.123},{id: 123, long: 40.123, lat: 20.123}]);
 });
 
 app.get('/driverGps', (req, res) => {
 
-  res.status(200).json([{id: 123, long: 40.123, lat: 20.123},{id: 123, long: 40.123, lat: 20.123},{id: 123, long: 40.123, lat: 20.123}]);
+  connection.query('select * from driverGPSTable;', (error, results, fields) => {
+    if(error) res.status(400).json({ message: error });
+    var results2 = results.map(({ driverID, latGPS, longGPS }) => ({
+        id: driverID,
+        lat: latGPS,
+        long: longGPS,
+      })
+    );
+    res.status(200).json(results2);
+  });
+
 });
 
 app.post('/link', (req, res) => {
 
   const { truckID, driverID } = req.body;
 
-  connection.query(`select * from linkTable where driverID='${driverID}';`, function (error, results, fields) {
+  connection.query(`select * from driverGPSTable where driverID='${driverID}';`, function (error, results, fields) {
     if(error) res.status(400).json({ message: error });
-    if(!results) res.status(400).json({ message: 'no such driverID' });
-    connection.query(`update linkTable set truckID=${truckID} where driverID='${driverID}';`, function (error, results, fields) {
+    if(results.length === 0) res.status(400).json({ message: 'no such driverID' });
+    // INSERT INTO table (id, name, age) VALUES(1, "A", 19) ON DUPLICATE KEY UPDATE
+    // name="A", age=19
+    connection.query(`insert into linkTable (truckID, driverID) values ('${truckID}', '${driverID}') on duplicate key update truckID='${truckID}', driverID='${driverID}';`, function (error, results, fields) {
       if(error) res.status(400).json({ message: error });
       res.status(200).json({ message: 'updated' });
     });
@@ -83,7 +104,68 @@ app.post('/link', (req, res) => {
 
 app.post('/truckApi', (req, res) => {
 
-  
+  const { DeviceSerial, Vin, MessageType, ReportType, TripState, ReceivedTimestamp, Latitude, Longitude, CollectionTimestamp } = req.body;
+
+  if (Latitude && Longitude && DeviceSerial) {
+    // `insert into linkTable (truckID, driverID) values ('${truckID}', '${driverID}') on duplicate key update truckID='${truckID}', driverID='${driverID}';`
+    connection.query(`update truckGPSTable set latGPS=${Latitude}, longGPS=${Longitude} where truckID='${DeviceSerial}';`, function (error, results, fields) {
+      if(error) res.status(400).json({ message: error });
+    });
+  }
+
+  if(
+    (MessageType === 'GPS' && (ReportType === 'StartedMove' || ReportType === 'Heading')) ||
+    (MessageType === 'Acceleration')
+  ) {
+
+    connection.query(`select * from linkTable where truckID='${DeviceSerial}';`, function (error, results, fields) {
+      if(error) res.status(400).json({ message: error });
+
+      if(results.length === 0) {
+        // TODO redalert
+        console.log('redalert outer');
+        res.status(200).json({ message: "redalert outer" });
+
+      } else {
+        const { driverID } = results[0];
+        connection.query(`select * from driverGPSTable where driverID='${driverID}';`, function (error, results, fields) {
+          if(error) res.status(400).json({ message: error });
+
+          const { latGPS, longGPS } = results[0];
+
+          if ( (latGPS - Latitude)*(latGPS - Latitude) + (longGPS - Longitude)*(longGPS - Longitude) > 1000 ) {
+            // TODO redalert
+            console.log('redalert inner');
+            res.status(200).json({ message: "redalert inner" });
+
+          } else {
+            res.status(200).json({ message: "no change inner" });
+          }
+
+        })
+      }
+
+    });
+
+  } else {
+    res.status(200).json({ message: "no change outer" });
+  }
+
+});
+
+app.post('/driverApi', (req, res) => {
+  const { driverID, lat, lon } = req.body;
+
+  if (driverID && lat && lon) {
+
+    connection.query(`update driverGPSTable set latGPS=${lat}, longGPS=${lon} where driverID='${driverID}';`, (error, result, fields) => {
+      if(error) res.status(400).json({ message: error });
+      res.status(200).json({ message: "inserted" });
+    })
+
+  } else {
+    res.status(400).json({ message: "missing params" });
+  }
 
 });
 
