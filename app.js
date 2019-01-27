@@ -15,6 +15,28 @@
 
 'use strict';
 
+function distance(lat1, lon1, lat2, lon2, unit) {
+  if ((lat1 == lat2) && (lon1 == lon2)) {
+    return 0;
+  }
+  else {
+    var radlat1 = Math.PI * lat1/180;
+    var radlat2 = Math.PI * lat2/180;
+    var theta = lon1-lon2;
+    var radtheta = Math.PI * theta/180;
+    var dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+    if (dist > 1) {
+      dist = 1;
+    }
+    dist = Math.acos(dist);
+    dist = dist * 180/Math.PI;
+    dist = dist * 60 * 1.1515;
+    if (unit=="K") { dist = dist * 1.609344 }
+    if (unit=="N") { dist = dist * 0.8684 }
+    return dist;
+  }
+}
+
 function getRandomInt(max) {
   return Math.floor(Math.random() * Math.floor(max));
 }
@@ -90,13 +112,19 @@ app.post('/link', (req, res) => {
   const { truckID, driverID } = req.body;
 
   connection.query(`select * from driverGPSTable where driverID='${driverID}';`, function (error, results, fields) {
-    if(error) res.status(400).json({ message: error });
-    if(results.length === 0) res.status(400).json({ message: 'no such driverID' });
+    if(error) { res.status(400).json({ message: error }); return; }
+    if(results.length === 0) { res.status(400).json({ message: 'no such driverID' }); return; }
     // INSERT INTO table (id, name, age) VALUES(1, "A", 19) ON DUPLICATE KEY UPDATE
     // name="A", age=19
-    connection.query(`insert into linkTable (truckID, driverID) values ('${truckID}', '${driverID}') on duplicate key update truckID='${truckID}', driverID='${driverID}';`, function (error, results, fields) {
-      if(error) res.status(400).json({ message: error });
-      res.status(200).json({ message: 'updated' });
+    connection.query(`DELETE FROM linkTable WHERE driverID='${driverID}'`, (error, results, fields) => {
+
+      connection.query(`INSERT INTO linkTable (truckID, driverID) VALUES ('${truckID}', '${driverID}');
+    `, function (error, results, fields) {
+        // connection.query(`insert into linkTable (truckID, driverID) values ('${truckID}', '${driverID}') on duplicate key update truckID='${truckID}', driverID='${driverID}';`, function (error, results, fields) {
+        if(error) res.status(400).json({ message: error });
+        res.status(200).json({ message: 'updated' });
+      });
+
     });
   });
 
@@ -109,7 +137,7 @@ app.post('/truckApi', (req, res) => {
   if (Latitude && Longitude && DeviceSerial) {
     // `insert into linkTable (truckID, driverID) values ('${truckID}', '${driverID}') on duplicate key update truckID='${truckID}', driverID='${driverID}';`
     connection.query(`update truckGPSTable set latGPS=${Latitude}, longGPS=${Longitude} where truckID=${DeviceSerial};`, function (error, results, fields) {
-      if(error) res.status(400).json({ message: error });
+      if(error) { res.status(400).json({ message: error }); return; }
     });
   }
 
@@ -119,7 +147,7 @@ app.post('/truckApi', (req, res) => {
   ) {
 
     connection.query(`select * from linkTable where truckID='${DeviceSerial}';`, function (error, results, fields) {
-      if(error) res.status(400).json({ message: error });
+      if(error) { res.status(400).json({ message: error }); return; }
 
       if(results.length === 0) {
         // TODO redalert
@@ -129,11 +157,12 @@ app.post('/truckApi', (req, res) => {
       } else {
         const { driverID } = results[0];
         connection.query(`select * from driverGPSTable where driverID='${driverID}';`, function (error, results, fields) {
-          if(error) res.status(400).json({ message: error });
+          if(error) { res.status(400).json({ message: error }); return; }
 
           const { latGPS, longGPS } = results[0];
 
-          if ( (latGPS - Latitude)*(latGPS - Latitude) + (longGPS - Longitude)*(longGPS - Longitude) > 1000 ) {
+          console.log(distance(latGPS, longGPS, Latitude, Longitude, 'K'));
+          if ( distance(latGPS, longGPS, Latitude, Longitude, 'K') > 1 ) {
             // TODO redalert
             console.log('redalert inner');
             res.status(200).json({ message: "redalert inner" });
@@ -159,12 +188,12 @@ app.post('/driverApi', (req, res) => {
   if (driverID && lat && lon) {
 
     connection.query(`update driverGPSTable set latGPS=${lat}, longGPS=${lon} where driverID='${driverID}';`, (error, result, fields) => {
-      if(error) res.status(400).json({ message: error });
+      if(error) { res.status(400).json({ message: error }); return; }
       res.status(200).json({ message: "inserted" });
     })
 
   } else {
-    res.status(400).json({ message: "missing params" });
+    res.status(400).json({ message: "missing params" }); return;
   }
 
 });
