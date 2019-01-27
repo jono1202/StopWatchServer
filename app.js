@@ -69,8 +69,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const Buffer = require('safe-buffer').Buffer;
 
-const accountSid = 'ACa4ff22e458bb21021d2239d9fe1c1dc3';
-const authToken = 'cb8da1d01ab1f3f76369c01f188c1e27';
+const accountSid = 'accountSid';
+const authToken = 'authToken';
 const client = require('twilio')(accountSid, authToken);
 
 const app = express();
@@ -138,6 +138,8 @@ app.post('/truckApi', (req, res) => {
 
   const { DeviceSerial, Vin, MessageType, ReportType, TripState, ReceivedTimestamp, Latitude, Longitude, CollectionTimestamp } = req.body;
 
+  console.log({ DeviceSerial, Vin, MessageType, ReportType, TripState, ReceivedTimestamp, Latitude, Longitude, CollectionTimestamp });
+
   if (Latitude && Longitude && DeviceSerial) {
     // `insert into linkTable (truckID, driverID) values ('${truckID}', '${driverID}') on duplicate key update truckID='${truckID}', driverID='${driverID}';`
     connection.query(`update truckGPSTable set latGPS=${Latitude}, longGPS=${Longitude} where truckID=${DeviceSerial};`, function (error, results, fields) {
@@ -146,21 +148,23 @@ app.post('/truckApi', (req, res) => {
   }
 
   if(
-    (MessageType === 'GPS' && (ReportType === 'StartedMove' || ReportType === 'Heading')) ||
+    (MessageType === 'GPS' && (ReportType === 'StartedMove' || ReportType === 'Heading' || ReportType === 'TimeExpired1')) ||
     (MessageType === 'Acceleration')
   ) {
 
+    console.log('good in');
     connection.query(`select * from linkTable where truckID='${DeviceSerial}';`, function (error, results, fields) {
       if(error) { res.status(400).json({ message: error }); return; }
 
       if(results.length === 0) {
+        console.log('noLink');
         // TODO redalert
-        if (DeviceSerial === '1084067242') {
+        if (DeviceSerial === 1084067242) {
           client.messages
             .create({
               body: `WARNING: truck device serial: ${DeviceSerial}, has not linked driver.\n latitude: ${Latitude}, longitute: ${Longitude}`,
               from: '+12892160743',
-              to: '+15197294910'
+              to: '+1111111111'
             })
             .then(message => {
               console.log(message.sid);
@@ -168,6 +172,8 @@ app.post('/truckApi', (req, res) => {
               res.status(200).json({ message: "redalert outer" });
             })
             .done();
+        } else {
+          res.status(200).json({ message: "redalert outer" });
         }
 
       } else {
@@ -178,22 +184,24 @@ app.post('/truckApi', (req, res) => {
           const { latGPS, longGPS } = results[0];
 
           console.log(distance(latGPS, longGPS, Latitude, Longitude, 'K'));
-          if ( distance(latGPS, longGPS, Latitude, Longitude, 'K') > 1 ) {
+          if ( distance(latGPS, longGPS, Latitude, Longitude, 'K') > 5 ) {
+            console.log('compared');
             // TODO redalert
 
-            if (DeviceSerial === '1084067241') {
+            if (DeviceSerial === 1084067241) {
               client.messages
                 .create({
                   body: `WARNING: truck device serial: ${DeviceSerial}, has stationary driver.\n driverID: ${driverID}, latitude: ${Latitude}, longitute: ${Longitude}`,
                   from: '+12892160743',
-                  to: '+15197294910'
+                  to: '+1111111111'
                 })
                 .then(message => {
                   console.log(message.sid);
-                  console.log('redalert outer');
-                  res.status(200).json({message: "redalert outer"});
+                  console.log('redalert inner');
+                  res.status(200).json({message: "redalert inner"});
                 })
                 .done();
+            } else {
               res.status(200).json({message: "redalert inner"});
             }
 
