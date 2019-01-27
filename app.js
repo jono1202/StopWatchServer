@@ -59,8 +59,8 @@ app.get('/truckGps', (req, res) => {
 
   connection.query('select * from truckGPSTable;', (error, results, fields) => {
     if(error) res.status(400).json({ message: error });
-    var results2 = results.map(({ driverID, latGPS, longGPS }) => ({
-      id: driverID,
+    var results2 = results.map(({ truckID, latGPS, longGPS }) => ({
+      id: truckID,
       lat: latGPS,
       long: longGPS,
     })
