@@ -69,6 +69,10 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const Buffer = require('safe-buffer').Buffer;
 
+const accountSid = 'ACa4ff22e458bb21021d2239d9fe1c1dc3';
+const authToken = 'cb8da1d01ab1f3f76369c01f188c1e27';
+const client = require('twilio')(accountSid, authToken);
+
 const app = express();
 app.use(bodyParser.json());
 
@@ -151,8 +155,20 @@ app.post('/truckApi', (req, res) => {
 
       if(results.length === 0) {
         // TODO redalert
-        console.log('redalert outer');
-        res.status(200).json({ message: "redalert outer" });
+        if (DeviceSerial === '1084067242') {
+          client.messages
+            .create({
+              body: `WARNING: truck device serial: ${DeviceSerial}, has not linked driver.\n latitude: ${Latitude}, longitute: ${Longitude}`,
+              from: '+12892160743',
+              to: '+15197294910'
+            })
+            .then(message => {
+              console.log(message.sid);
+              console.log('redalert outer');
+              res.status(200).json({ message: "redalert outer" });
+            })
+            .done();
+        }
 
       } else {
         const { driverID } = results[0];
@@ -164,8 +180,22 @@ app.post('/truckApi', (req, res) => {
           console.log(distance(latGPS, longGPS, Latitude, Longitude, 'K'));
           if ( distance(latGPS, longGPS, Latitude, Longitude, 'K') > 1 ) {
             // TODO redalert
-            console.log('redalert inner');
-            res.status(200).json({ message: "redalert inner" });
+
+            if (DeviceSerial === '1084067241') {
+              client.messages
+                .create({
+                  body: `WARNING: truck device serial: ${DeviceSerial}, has stationary driver.\n driverID: ${driverID}, latitude: ${Latitude}, longitute: ${Longitude}`,
+                  from: '+12892160743',
+                  to: '+15197294910'
+                })
+                .then(message => {
+                  console.log(message.sid);
+                  console.log('redalert outer');
+                  res.status(200).json({message: "redalert outer"});
+                })
+                .done();
+              res.status(200).json({message: "redalert inner"});
+            }
 
           } else {
             res.status(200).json({ message: "no change inner" });
@@ -207,3 +237,7 @@ if (module === require.main) {
 }
 
 module.exports = app;
+
+// 1088214007
+// 1084067241
+// (289) 216-0743
