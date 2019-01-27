@@ -108,7 +108,7 @@ app.post('/truckApi', (req, res) => {
 
   if (Latitude && Longitude && DeviceSerial) {
     // `insert into linkTable (truckID, driverID) values ('${truckID}', '${driverID}') on duplicate key update truckID='${truckID}', driverID='${driverID}';`
-    connection.query(`update truckGPSTable set latGPS=${Latitude}, longGPS=${Longitude} where truckID='${DeviceSerial}';`, function (error, results, fields) {
+    connection.query(`update truckGPSTable set latGPS=${Latitude}, longGPS=${Longitude} where truckID=${DeviceSerial};`, function (error, results, fields) {
       if(error) res.status(400).json({ message: error });
     });
   }
